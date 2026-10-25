@@ -1,24 +1,45 @@
-# Local secrets; sanitized example files may be committed.
+*.iml
+.gradle
+.idea/
+.kotlin/
+.claude/
+_merge_tmp/
+/local.properties
+local.properties
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+node_modules/
+guest-chat/dist/
+.firebase/
+*-debug.log
+firestore-debug.log
+ui-debug.log
+guest-chat/public/firebase-config.json
+guest-chat/public/sign-images.json
+guest-chat/public/sign-media.json
+guest-chat/public/translations.json
+guest-chat/public/phonetic-input.json
+guest-chat/public/images/
+guest-chat/public/videos/
 .env
 .env.*
 !.env.example
-!.env.*.example
-*.pem
-*.key
-
-# Common dependencies, build output, caches, and local tooling.
-node_modules/
-.next/
-dist/
-build/
-coverage/
-.venv/
-venv/
+*service-account*.json
+*adminsdk*.json
+*.jks
+*.keystore
+*.p12
+.indictrans-venv/
+local-translation/.state/
 __pycache__/
-*.py[cod]
-.pytest_cache/
-.DS_Store
-Thumbs.db
-*.log
 
-# Add entries appropriate to your chosen language or framework.
+
+# Local service configuration and generated artifacts
+.firebaserc
+app/src/main/assets/firebase-config.json
+**/build/
+**/__pycache__/
+*.pyc

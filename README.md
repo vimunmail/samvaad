@@ -1,56 +1,55 @@
-# DevDay Exchange Community Hackathon: Kochi
+# Samvaad
 
-A repository template for participants at the 10–11 October 2026 hackathon. It contains event rules and documentation scaffolding; build your project from scratch at the event.
+Android communication app for a Bluetooth LE gesture glove, with gesture recognition, speech, Indian-language translation, and QR-based browser guest conversations.
 
-**[Event and registration on Luma](https://luma.com/z10nz8gp)** · **[Event rules](RULES.md)** · **[Agent instructions](AGENTS.md)**
+## Project files
 
-## Event details
+- `app/`: Kotlin and Jetpack Compose Android app, assets, and tests.
+- `firmware/`: glove firmware.
+- `guest-chat/`: React and TypeScript guest chat, automatic message audio, and listening controls.
+- `firebase/`: Firestore rules, optional translation functions, and tests.
+- `local-translation/`: IndicTrans2 download, export, verification, and optional computer translator.
+- `scripts/`: Firebase setup and guest asset preparation.
 
-| Detail | Information |
-| --- | --- |
-| Venue | JAIN University, Kochi |
-| Location | [Open the venue map](https://maps.app.goo.gl/Eme7gR7NDXSNRANu5) |
-| Rooms | 2008 and 2009 |
-| Check-in | 10 October 2026, 6:00 PM IST |
-| Kick-off | 10 October 2026, 6:30 PM IST |
-| Wrap-up | 11 October 2026, by 10:00 AM IST |
-| Participation | Solo or a team of up to 4 participants |
-| Theme | Open — build anything you like |
+## Android setup
 
-Keep your approved Luma QR code ready for entry, and bring your laptop and charger. Eligible checked-in participants will receive Codex credits and OpenAI API credits.
+Use Android Studio with Android SDK 36 and JDK 17. Configure your local Android SDK path in `local.properties` if needed. The application ID is `com.samvaad.mobile`.
 
-## Use this template
+The Android build requires the offline translation assets described in [INDICTRANS_SETUP.md](INDICTRANS_SETUP.md). Model weights and generated builds are not stored in this repository.
 
-1. Select **Use this template → Create a new repository** on GitHub. Create your own project repository and clone it.
-2. Read [RULES.md](RULES.md) and [AGENTS.md](AGENTS.md) before building. Begin project implementation at the event.
-3. Fill in the project overview below as you build. Use any suitable language or framework, keeping the implementation simple.
-4. Record meaningful changes in [CHANGELOG.md](CHANGELOG.md) and your Codex usage in [AI_USAGE.md](AI_USAGE.md). Commit after completed milestones; aim for a meaningful checkpoint about every 30 minutes.
-5. Complete [SUBMISSION.md](SUBMISSION.md) with your code repository, short project description, and working demo. Follow submission instructions announced by the organizers.
+Copy `app/src/main/assets/firebase-config.example.json` to `app/src/main/assets/firebase-config.json` and configure your Firebase project to enable guest conversations. Leave `enabled` false if guest conversations are not configured. Never commit private tokens, service-account credentials, or signing keys.
 
-This template has no application code or required technology stack. The documentation and commit cadence are repository workflow guidance; the event participation rules are in [RULES.md](RULES.md).
+On Windows:
 
-## Project overview — complete during the event
+```powershell
+.\gradlew.bat :app:assembleDebug
+.\gradlew.bat :app:testDebugUnitTest
+```
 
-- **Project name:** TODO
-- **Short description:** TODO — what it does, who it helps, and why it matters.
-- **Team:** TODO — participant names and GitHub handles; maximum 4 members.
-- **Working demo:** TODO — link or local demo instructions.
-- **Technology stack:** TODO
+## Guest chat
 
-### Run the project
+Install Node.js 22 or later. From the repository root:
 
-Replace these placeholders with commands that actually work for your project:
+```powershell
+npm ci
+npm --prefix guest-chat ci
+npm run web:build
+npm run web:dev
+```
 
-1. Prerequisites and versions: TODO
-2. Dependency installation: TODO
-3. Environment setup: TODO — list required variable names and provide a sanitized `.env.example` if needed.
-4. Start the project: TODO
-5. Run checks or tests: TODO
+The web build prepares public chat assets from the Android assets. For your own Firebase project, enable anonymous authentication and Firestore, configure the app using `scripts/configure-firebase.mjs`, and deploy the provided rules and hosting configuration. See the script's arguments before running it. Live Firebase configuration and local deployment selections are excluded from Git.
 
-### Current status
+Run guest tests on Windows:
 
-- Working features: TODO
-- Known limitations: TODO
-- Libraries, APIs, and public datasets used: TODO — include source links and applicable attribution.
+```powershell
+$testFiles = @(Get-ChildItem guest-chat/tests/*.test.mjs | ForEach-Object { $_.FullName })
+node --test @testFiles
+```
 
-See [AI_USAGE.md](AI_USAGE.md) for AI assistance and [CHANGELOG.md](CHANGELOG.md) for the development record.
+Guests join through the app's QR link and require host approval. New host messages play automatically after the guest joins; Audio on/off controls mute playback. Browser audio requires a user gesture and available voices. Connection speed depends on network conditions and host approval.
+
+## Translation and models
+
+Offline translation uses AI4Bharat IndicTrans2 English-to-Indic distilled 200M, exported to quantized ONNX. Gesture recognition supports the project's bundled and user-trained models. Speech depends on installed device/browser voices. Review generated translations before relying on their meaning.
+
+Upstream preprocessing licenses and attribution are retained under `local-translation/vendor/`.

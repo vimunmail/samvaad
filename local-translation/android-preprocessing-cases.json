@@ -1,0 +1,50 @@
+[
+  {
+    "english": "why didn't you come",
+    "normalized": "why didn 't you come"
+  },
+  {
+    "english": "why you are crying",
+    "normalized": "why you are crying"
+  },
+  {
+    "english": "I do not want water.",
+    "normalized": "I do not want water ."
+  },
+  {
+    "english": "Hello, how are you?",
+    "normalized": "Hello , how are you ?"
+  },
+  {
+    "english": "Please call Dr. Ravi at 5:30.",
+    "normalized": "Please call Dr. Ravi at 5 : 30 ."
+  },
+  {
+    "english": "Email me at gestalk@example.com.",
+    "normalized": "Email me at < ID1 > ."
+  },
+  {
+    "english": "It costs 5,300 rupees.",
+    "normalized": "It costs 5,300 rupees ."
+  },
+  {
+    "english": "My name is José.",
+    "normalized": "My name is José ."
+  },
+  {
+    "english": "I can’t come…",
+    "normalized": "I can 't come ..."
+  },
+  {
+    "english": "Please visit https://example.com/test.",
+    "normalized": "Please visit < ID1 > ."
+  },
+  {
+    "english": "My ID is 123456.",
+    "normalized": "My ID is 123456 ."
+  },
+  {
+    "english": "Do you want \"tea\" or coffee?",
+    "normalized": "Do you want \" tea \" or coffee ?"
+  }
+]

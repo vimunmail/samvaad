@@ -1,0 +1,178 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function room(id) { return get(/databases/$(database)/documents/rooms/$(id)).data; }
+    function host(id) { return signedIn() && room(id).hostUid == request.auth.uid; }
+    function group(id) { return room(id).keys().hasAny(['guestUids']); }
+    function member(id) {
+      return signedIn() && (room(id).hostUid == request.auth.uid
+        || (group(id) ? request.auth.uid in room(id).guestUids : room(id).guestUid == request.auth.uid));
+    }
+    function space(id) { return group(id) ? room(id).guestUids.size() < 8 : room(id).guestUid == null; }
+    function live(id) { return room(id).status != 'closed' && request.time < room(id).expiresAt; }
+    function validInvite(token, id) {
+      let invitation = get(/databases/$(database)/documents/invites/$(token)).data;
+      return invitation.roomId == id && request.time < invitation.expiresAt
+        && invitation.get('revoked', false) == false;
+    }
+    match /invites/{token} {
+      allow get: if signedIn() && live(resource.data.roomId)
+        && ((request.time < resource.data.expiresAt && resource.data.get('revoked', false) == false && space(resource.data.roomId))
+          || member(resource.data.roomId));
+      allow list: if false;
+      allow create: if signedIn() && token.matches('^[a-f0-9]{64}$')
+        && request.resource.data.keys().hasOnly(['roomId', 'expiresAt'])
+        && getAfter(/databases/$(database)/documents/rooms/$(request.resource.data.roomId)).data.hostUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/rooms/$(request.resource.data.roomId)).data.status != 'closed'
+        && request.resource.data.expiresAt <= getAfter(/databases/$(database)/documents/rooms/$(request.resource.data.roomId)).data.expiresAt
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(15, 'm');
+      allow delete: if host(resource.data.roomId);
+      // Rotation cancels the old QR for new joins, while approved guests can reload it.
+      allow update: if host(resource.data.roomId)
+        && resource.data.get('revoked', false) == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked'])
+        && request.resource.data.revoked == true;
+    }
+    match /rooms/{roomId} {
+      allow get: if member(roomId);
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['hostUid', 'guestUid', 'guestUids', 'status', 'createdAt', 'expiresAt'])
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.guestUid == null && request.resource.data.status == 'waiting'
+        && (!request.resource.data.keys().hasAny(['guestUids'])
+          || (request.resource.data.guestUids is list && request.resource.data.guestUids.size() == 0))
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(3, 'h');
+      allow update: if host(roomId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guestUid', 'guestUids', 'status'])
+        && request.resource.data.keys().hasAny(['guestUids']) == resource.data.keys().hasAny(['guestUids'])
+        && (
+          (request.resource.data.status == 'closed' && request.resource.data.guestUid == resource.data.guestUid
+            && (!group(roomId) || request.resource.data.guestUids == resource.data.guestUids))
+          || (group(roomId) && live(roomId) && request.resource.data.status == 'active'
+            && request.resource.data.guestUids is list && request.resource.data.guestUids.size() <= 8
+            && request.resource.data.guestUids.toSet().size() == request.resource.data.guestUids.size()
+            && request.resource.data.guestUids.size() == resource.data.guestUids.size() + 1
+            && request.resource.data.guestUids.hasAll(resource.data.guestUids)
+            && request.resource.data.guestUid is string
+            && !(request.resource.data.guestUid in resource.data.guestUids)
+            && request.resource.data.guestUid in request.resource.data.guestUids
+            && getAfter(/databases/$(database)/documents/rooms/$(roomId)/requests/$(request.resource.data.guestUid)).data.status == 'approved'
+            && validInvite(get(/databases/$(database)/documents/rooms/$(roomId)/requests/$(request.resource.data.guestUid)).data.token, roomId))
+          || (group(roomId) && live(roomId) && request.resource.data.status == resource.data.status
+            && request.resource.data.guestUid == resource.data.guestUid
+            && request.resource.data.guestUids is list
+            && request.resource.data.guestUids.toSet().size() == request.resource.data.guestUids.size()
+            && request.resource.data.guestUids.size() < resource.data.guestUids.size()
+            && resource.data.guestUids.hasAll(request.resource.data.guestUids))
+          || (!group(roomId) && live(roomId) && resource.data.guestUid == null && resource.data.status == 'waiting'
+            && request.resource.data.status == 'active' && request.resource.data.guestUid is string
+            && getAfter(/databases/$(database)/documents/rooms/$(roomId)/requests/$(request.resource.data.guestUid)).data.status == 'approved'
+            && validInvite(get(/databases/$(database)/documents/rooms/$(roomId)/requests/$(request.resource.data.guestUid)).data.token, roomId))
+        );
+      allow delete: if false;
+      match /requests/{uid} {
+        allow get: if signedIn() && (request.auth.uid == uid || host(roomId));
+        allow list: if host(roomId);
+        allow create: if signedIn() && request.auth.uid == uid && request.auth.uid != room(roomId).hostUid
+          && live(roomId) && room(roomId).status in ['waiting', 'active'] && space(roomId)
+          && request.resource.data.keys().hasOnly(['name', 'token', 'status', 'createdAt'])
+          && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40
+          && request.resource.data.token is string && validInvite(request.resource.data.token, roomId)
+          && request.resource.data.status == 'pending' && request.resource.data.createdAt == request.time;
+        allow update: if signedIn() && request.auth.uid == uid && live(roomId)
+          && resource.data.status == 'pending' && request.resource.data.status == 'pending'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['token'])
+          && validInvite(request.resource.data.token, roomId);
+        allow update: if host(roomId) && live(roomId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && ((resource.data.status == 'approved' && request.resource.data.status == 'removed' && group(roomId)
+              && !(uid in getAfter(/databases/$(database)/documents/rooms/$(roomId)).data.guestUids))
+            || (resource.data.status == 'pending' && (request.resource.data.status == 'rejected'
+            || (request.resource.data.status == 'approved'
+              && getAfter(/databases/$(database)/documents/rooms/$(roomId)).data.guestUid == uid
+              && (!group(roomId) || uid in getAfter(/databases/$(database)/documents/rooms/$(roomId)).data.guestUids)
+              && getAfter(/databases/$(database)/documents/rooms/$(roomId)).data.status == 'active'
+              && validInvite(resource.data.token, roomId)))));
+        allow delete: if false;
+      }
+      match /messages/{messageId} {
+        function validTranslations(values) {
+          return values is map
+            && values.keys().hasOnly(['hi', 'bn', 'te', 'mr', 'ta', 'ur', 'gu', 'kn', 'ml', 'pa', 'or', 'as'])
+            && values.size() <= 12
+            && values.get('hi', '') is string && values.get('hi', '').size() <= 300
+            && values.get('bn', '') is string && values.get('bn', '').size() <= 300
+            && values.get('te', '') is string && values.get('te', '').size() <= 300
+            && values.get('mr', '') is string && values.get('mr', '').size() <= 300
+            && values.get('ta', '') is string && values.get('ta', '').size() <= 300
+            && values.get('ur', '') is string && values.get('ur', '').size() <= 300
+            && values.get('gu', '') is string && values.get('gu', '').size() <= 300
+            && values.get('kn', '') is string && values.get('kn', '').size() <= 300
+            && values.get('ml', '') is string && values.get('ml', '').size() <= 300
+            && values.get('pa', '') is string && values.get('pa', '').size() <= 300
+            && values.get('or', '') is string && values.get('or', '').size() <= 300
+            && values.get('as', '') is string && values.get('as', '').size() <= 300;
+        }
+        allow read: if member(roomId) && live(roomId);
+        allow create: if member(roomId) && live(roomId)
+          && (host(roomId) || room(roomId).status == 'active')
+          && request.resource.data.keys().hasOnly(['senderUid', 'senderName', 'kind', 'text', 'translation', 'translations', 'imageAsset', 'createdAt', 'clientTime'])
+          && request.resource.data.senderUid == request.auth.uid
+          && (!request.resource.data.keys().hasAny(['senderName'])
+            || (request.resource.data.senderName is string && request.resource.data.senderName.size() <= 40
+              && (host(roomId) ? request.resource.data.senderName in ['Gestalk', 'Samvaad']
+                : request.resource.data.senderName == get(/databases/$(database)/documents/rooms/$(roomId)/requests/$(request.auth.uid)).data.name)))
+          && request.resource.data.kind in ['text', 'sign', 'image', 'speech']
+          && (request.resource.data.kind != 'sign' || host(roomId))
+          && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
+          && request.resource.data.translation is string && request.resource.data.translation.size() <= 2000
+          && (!request.resource.data.keys().hasAny(['translations'])
+            || (host(roomId) && request.resource.data.kind == 'sign'
+              && validTranslations(request.resource.data.translations)))
+          && request.resource.data.imageAsset is string && request.resource.data.imageAsset.size() <= 240
+          && (request.resource.data.imageAsset == '' ||
+            (request.resource.data.imageAsset.matches('^images/[A-Za-z0-9 _()./-]+\\.png$')
+              && !request.resource.data.imageAsset.matches('.*\\.\\..*')))
+          && request.resource.data.clientTime is int
+          && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+      // Transient typing/captions are separate from the immutable transcript.
+      match /participants/{uid} {
+        allow read: if member(roomId) && live(roomId);
+        allow create, update: if member(roomId) && live(roomId) && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['language', 'typing', 'caption', 'updatedAt'])
+          && request.resource.data.language in ['en', 'hi', 'bn', 'te', 'mr', 'ta', 'ur', 'gu', 'kn', 'ml', 'pa', 'or', 'as']
+          && request.resource.data.typing is bool
+          && request.resource.data.caption is string && request.resource.data.caption.size() <= 2000
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+      match /receipts/{receiptId} {
+        function receiver(messageId) {
+          return member(roomId) && live(roomId)
+            && get(/databases/$(database)/documents/rooms/$(roomId)/messages/$(messageId)).data.senderUid != request.auth.uid;
+        }
+        allow read: if member(roomId) && live(roomId);
+        allow create: if receiver(request.resource.data.get('messageId', receiptId))
+          && request.resource.data.keys().hasOnly(['messageId', 'receiverUid', 'deliveredAt', 'readAt'])
+          && (request.resource.data.keys().hasAny(['messageId'])
+            ? (request.resource.data.messageId is string && receiptId == request.resource.data.messageId + '_' + request.auth.uid)
+            : !group(roomId))
+          && request.resource.data.receiverUid == request.auth.uid
+          && request.resource.data.deliveredAt == request.time
+          && (request.resource.data.readAt == null || request.resource.data.readAt == request.time);
+        allow update: if receiver(resource.data.get('messageId', receiptId)) && resource.data.receiverUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+          && resource.data.readAt == null && request.resource.data.readAt == request.time;
+        allow delete: if false;
+      }
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

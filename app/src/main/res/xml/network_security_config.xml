@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Local IndicTrans2 may use HTTP. Its client accepts only literal private IPv4
+         addresses, disables redirects and authenticates each request with a pairing key.
+         Guest chat and Google Translation continue to use HTTPS endpoints. -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors><certificates src="system" /></trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">googleapis.com</domain>
+        <domain includeSubdomains="true">google.com</domain>
+        <domain includeSubdomains="true">firebaseio.com</domain>
+        <domain includeSubdomains="true">cloudfunctions.net</domain>
+        <domain includeSubdomains="true">run.app</domain>
+        <domain includeSubdomains="true">web.app</domain>
+        <domain includeSubdomains="true">firebaseapp.com</domain>
+    </domain-config>
+</network-security-config>
