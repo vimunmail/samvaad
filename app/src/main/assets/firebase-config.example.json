@@ -1,7 +1,0 @@
-{
-  "enabled": false,
-  "projectId": "YOUR_FIREBASE_PROJECT_ID",
-  "apiKey": "YOUR_FIREBASE_WEB_API_KEY",
-  "appId": "YOUR_FIREBASE_WEB_APP_ID",
-  "guestChatUrl": "https://YOUR_FIREBASE_PROJECT_ID.web.app"
-}

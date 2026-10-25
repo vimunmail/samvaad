@@ -1,7 +1,0 @@
-transformers==4.51.3
-sentencepiece==0.2.1
-sacremoses==0.1.1
-indic-nlp-library-itt==0.1.1
-safetensors>=0.6.2,<1
-numpy>=2.1,<3
-
