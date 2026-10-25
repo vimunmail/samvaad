@@ -2,6 +2,10 @@
 
 Android communication app for a Bluetooth LE gesture glove, with gesture recognition, speech, Indian-language translation, and QR-based browser guest conversations.
 
+## Built prototype
+
+![Samvaad built glove prototype](docs/images/samvaad-built-prototype.jpg)
+
 ## Project files
 
 - `app/`: Kotlin and Jetpack Compose Android app, assets, and tests.
